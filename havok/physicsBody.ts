@@ -11,7 +11,7 @@ import {
     type PhysicsConstraint,
     type PhysicsMassProperties,
     type PhysicsMotionType,
-} from "@/models/havok";
+} from "@/utils/three/havok/types/havok";
 import { setObjectWorldPosition } from "@/utils/three/objectUtils";
 
 import type { Object3D, Bone, Mesh, Group, InstancedMesh } from "three";
@@ -168,7 +168,7 @@ export class PhysicsBody {
      */
     updateBodyInstances() {
         const m = this.node;
-        if (m.count) {
+        if ((m as Mesh).count) {
             this._physicsPlugin.updateBodyInstances(this, m as InstancedMesh);
         }
     }
@@ -555,8 +555,8 @@ export class PhysicsBody {
     addConstraint(
         childBody: this,
         constraint: PhysicsConstraint,
-        instanceIndex: number,
-        childInstanceIndex: number
+        instanceIndex?: number,
+        childInstanceIndex?: number
     ) {
         this._physicsPlugin.addConstraint(
             this,

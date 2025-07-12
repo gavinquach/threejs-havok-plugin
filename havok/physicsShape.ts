@@ -6,10 +6,10 @@ import { Quaternion } from "three/src/math/Quaternion.js";
 import type { HavokPlugin } from "./havokPlugin";
 
 import {
-    PhysicShapeOptions,
-    PhysicsMaterial,
     PhysicsShapeType,
-} from "@/models/havok";
+    type PhysicShapeOptions,
+    type PhysicsMaterial,
+} from "@/utils/three/havok/types/havok";
 import { QUATERNION_IDENTITY, VECTOR_ONE, VECTOR_ZERO } from "@/utils/three/constants";
 
 import type {  Object3D, Mesh } from "three";

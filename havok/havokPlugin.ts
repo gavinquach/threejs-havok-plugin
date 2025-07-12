@@ -1,6 +1,4 @@
-/* eslint-disable unicorn/no-null */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 // This is an adaptation of the Babylon.js HavokPlugin for Three.js.
 // All Babylon.js dependencies have been replaced with Three.js equivalents.
 // Original authors from Babylon.js team. Adapted with Gemini 2.5 Pro on T3 Chat. Heavily updated and fixed by Gavin Quach.
@@ -23,13 +21,13 @@ import type {
 import { PhysicsShape } from "./physicsShape";
 
 import {
-    IBasePhysicsCollisionEvent,
-    IPhysicsCollisionEvent,
+    type IBasePhysicsCollisionEvent,
+    type IPhysicsCollisionEvent,
     PhysicsActivationControl,
     PhysicsConstraintAxis,
     PhysicsConstraintAxisLimitMode,
     PhysicsConstraintMotorType,
-    PhysicsMassProperties,
+    type PhysicsMassProperties,
     PhysicsMaterialCombineMode,
     PhysicsMotionType,
     PhysicsPrestepType,
@@ -39,12 +37,10 @@ import {
     type PhysicsEventType,
     type PhysicsMaterial,
     type PhysicsShapeParameters,
-} from "@/models/havok";
-import { Observable } from "@/utils/Observable";
+} from "@/utils/three/havok/types/havok";
+import { Observable } from "@/utils/three/Observable";
 import { VECTOR_RIGHT } from "@/utils/three/constants";
 import { getVectorNormalToRef } from "@/utils/three/vectorUtils";
-
-import { clientSettings } from "clientSettings";
 
 import type {
     HavokPhysicsWithBindings,
@@ -1710,9 +1706,7 @@ export class HavokPlugin {
         const type = constraint.type;
         const options = constraint.options;
         if (!type || !options) {
-            if (clientSettings.DEBUG) {
-                console.warn("No constraint type or options. Constraint is invalid.");
-            }
+            console.warn("No constraint type or options. Constraint is invalid.");
             return;
         }
         if (
@@ -1720,11 +1714,9 @@ export class HavokPlugin {
             (childBody._pluginDataInstances.length > 0 &&
                 childInstanceIndex === undefined)
         ) {
-            if (clientSettings.DEBUG) {
                 console.warn(
                     "Body is instanced but no instance index was specified. Constraint will not be applied."
                 );
-            }
             return;
         }
         constraint._pluginData = constraint._pluginData ?? [];
@@ -1993,8 +1985,8 @@ export class HavokPlugin {
         body: PhysicsBody,
         childBody: PhysicsBody,
         constraint: PhysicsConstraint,
-        instanceIndex: number,
-        childInstanceIndex: number
+        instanceIndex?: number,
+        childInstanceIndex?: number
     ) {
         //<todo It's real weird that initConstraint() is called only after adding to a body!
         this.initConstraint(
@@ -2619,6 +2611,7 @@ export class HavokPlugin {
             const bodyInfoB = this._bodies.get(event.contactOnB.bodyId as HP_BodyId[0]);
             // Bodies may have been disposed between events. Check both still exist.
             if (bodyInfoA && bodyInfoB) {
+                // @ts-expect-error ignore this
                 const collisionInfo: IPhysicsCollisionEvent = {
                     collider: bodyInfoA.body,
                     colliderIndex: bodyInfoA.index,
@@ -2742,15 +2735,15 @@ export class HavokPlugin {
 
     // --- HELPER FUNCTIONS ---
 
-    private getPerpendicular(v: Vector3, result: Vector3): void {
-        if (Math.abs(v.x) > Math.abs(v.y)) {
-            const invLen = 1 / Math.hypot(v.x, v.z);
-            result.set(-v.z * invLen, 0, v.x * invLen);
-        } else {
-            const invLen = 1 / Math.hypot(v.y, v.z);
-            result.set(0, v.z * invLen, -v.y * invLen);
-        }
-    }
+    // private getPerpendicular(v: Vector3, result: Vector3): void {
+    //     if (Math.abs(v.x) > Math.abs(v.y)) {
+    //         const invLen = 1 / Math.hypot(v.x, v.z);
+    //         result.set(-v.z * invLen, 0, v.x * invLen);
+    //     } else {
+    //         const invLen = 1 / Math.hypot(v.y, v.z);
+    //         result.set(0, v.z * invLen, -v.y * invLen);
+    //     }
+    // }
 
     private _getTransformInfos(node: Object3D): QTransform {
         node.updateWorldMatrix(true, false);
