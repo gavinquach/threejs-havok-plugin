@@ -1,7 +1,8 @@
+Also need to use `@babylonjs-havok` npm package
 ```
 const { default: HavokPhysics } = await import("@babylonjs/havok");
 const path = new URL(
-	"/havok/HavokPhysics.wasm",
+	"/havok/HavokPhysics.wasm", // your .wasm file path here
 	globalThis.self.location.origin
 ).toString();
 const response = await fetch(path);
