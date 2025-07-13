@@ -32,8 +32,6 @@ import {
     PhysicsMotionType,
     PhysicsPrestepType,
     PhysicsShapeType,
-    type Physics6DoFConstraint,
-    type PhysicsConstraint,
     type PhysicsEventType,
     type PhysicsMaterial,
     type PhysicsShapeParameters,
@@ -64,6 +62,7 @@ import type {
     Mesh,
     Object3D,
 } from "three";
+import type { Physics6DoFConstraint, PhysicsConstraint } from "./physicsConstraint";
 
 export interface HavokCollisionEvent {
     type: "collision" | "collisionended";
@@ -2003,9 +2002,9 @@ export class HavokPlugin {
      * @param isEnabled - Whether the constraint should be enabled or disabled.
      *
      */
-    setEnabled(constraint: PhysicsConstraint, isEnabled: number) {
+    setEnabled(constraint: PhysicsConstraint, isEnabled: boolean) {
         for (const jointId of constraint._pluginData) {
-            this._hknp.HP_Constraint_SetEnabled(jointId, isEnabled);
+            this._hknp.HP_Constraint_SetEnabled(jointId, isEnabled ? 1 : 0);
         }
     }
     /**
@@ -2014,10 +2013,10 @@ export class HavokPlugin {
      * @returns The enabled state of the given constraint.
      *
      */
-    getEnabled(constraint: PhysicsConstraint) {
+    getEnabled(constraint: PhysicsConstraint): boolean {
         const firstId = constraint._pluginData && constraint._pluginData[0];
         if (firstId) {
-            return this._hknp.HP_Constraint_GetEnabled(firstId)[1];
+            return this._hknp.HP_Constraint_GetEnabled(firstId)[1] === 0 ? false : true;
         }
         return false;
     }
@@ -2027,9 +2026,9 @@ export class HavokPlugin {
      * @param isEnabled - Whether collisions should be enabled or disabled.
      *
      */
-    setCollisionsEnabled(constraint: PhysicsConstraint, isEnabled: number) {
+    setCollisionsEnabled(constraint: PhysicsConstraint, isEnabled: boolean) {
         for (const jointId of constraint._pluginData) {
-            this._hknp.HP_Constraint_SetCollisionsEnabled(jointId, isEnabled);
+            this._hknp.HP_Constraint_SetCollisionsEnabled(jointId, isEnabled ? 1 : 0);
         }
     }
     /**
@@ -2038,10 +2037,10 @@ export class HavokPlugin {
      * @returns Whether collisions are enabled for the given constraint.
      *
      */
-    getCollisionsEnabled(constraint: PhysicsConstraint) {
+    getCollisionsEnabled(constraint: PhysicsConstraint): boolean {
         const firstId = constraint._pluginData && constraint._pluginData[0];
         if (firstId) {
-            return this._hknp.HP_Constraint_GetCollisionsEnabled(firstId)[1];
+            return this._hknp.HP_Constraint_GetCollisionsEnabled(firstId)[1] === 0 ? false : true;
         }
         return false;
     }
