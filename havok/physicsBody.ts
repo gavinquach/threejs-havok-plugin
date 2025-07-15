@@ -3,12 +3,12 @@ import { Quaternion } from "three/src/math/Quaternion.js";
 import { Vector3 } from "three/src/math/Vector3.js";
 import { Matrix4 } from "three/src/math/Matrix4.js";
 
+import type { PhysicsConstraint } from "./physicsConstraint";
 import type { PhysicsShape } from "./physicsShape";
 import type { BodyPluginData, HavokPlugin } from "./havokPlugin";
 
 import {
     PhysicsPrestepType,
-    type PhysicsConstraint,
     type PhysicsMassProperties,
     type PhysicsMotionType,
 } from "@/utils/three/havok/types/havok";
