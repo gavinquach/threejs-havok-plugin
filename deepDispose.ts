@@ -1,11 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-    type Object3D,
-    BufferGeometry,
-    Material,
-    Texture,
-    type ShaderMaterial,
-} from "three";
+import { BufferGeometry } from "three/src/core/BufferGeometry.js";
+import { Material } from "three/src/materials/Material.js";
+import { Texture } from "three/src/textures/Texture.js";
+
+import type { Object3D, ShaderMaterial } from "three";
 
 /**
  * Traverse material or array of materials and all nested textures
