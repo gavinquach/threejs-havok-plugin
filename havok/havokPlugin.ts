@@ -74,10 +74,31 @@ export interface HavokTriggerEvent {
     detail: IBasePhysicsCollisionEvent;
 }
 
-// const _tempQuaternion = new Quaternion();
-const _tempVector = new Vector3();
-const tempMatrixes = Array.from({ length: 5 }, () => new Matrix4());
-// const tempVecs = Array.from({ length: 2 }, () => new Vector3());
+const tempMatrixes = Array.from({ length: 4 }, () => new Matrix4());
+const tempVecs = Array.from({ length: 3 }, () => new Vector3());
+const tempQuats = Array.from({ length: 1 }, () => new Quaternion());
+
+const worldPos = new Vector3();
+const worldQuat = new Quaternion();
+
+const isMatrixIdentity = (m: Matrix4): boolean => {
+    return m.elements[0] === 1 &&
+        m.elements[1] === 0 &&
+        m.elements[2] === 0 &&
+        m.elements[3] === 0 &&
+        m.elements[4] === 0 &&
+        m.elements[5] === 1 &&
+        m.elements[6] === 0 &&
+        m.elements[7] === 0 &&
+        m.elements[8] === 0 &&
+        m.elements[9] === 0 &&
+        m.elements[10] === 1 &&
+        m.elements[11] === 0 &&
+        m.elements[12] === 0 &&
+        m.elements[13] === 0 &&
+        m.elements[14] === 0 &&
+        m.elements[15] === 1;
+};
 
 // Helper class to gather mesh data from a Three.js hierarchy
 class MeshAccumulator {
@@ -85,6 +106,8 @@ class MeshAccumulator {
     private _indices: Array<number>;
     private _isRightHanded: boolean;
     private _collectIndices: boolean;
+
+    private readonly meshWorldScale: Vector3 = new Vector3();
 
     /**
      * Constructor of the mesh accumulator
@@ -117,9 +140,8 @@ class MeshAccumulator {
         object.updateMatrixWorld(true);
 
         const rootScaled = tempMatrixes[0];
-        const meshWorldScale = _tempVector;
-        object.getWorldScale(meshWorldScale);
-        rootScaled.makeScale(meshWorldScale.x, meshWorldScale.y, meshWorldScale.z);
+        object.getWorldScale(this.meshWorldScale);
+        rootScaled.makeScale(this.meshWorldScale.x, this.meshWorldScale.y, this.meshWorldScale.z);
 
         if (object.type === "Mesh") this._addMesh(object as Mesh, rootScaled);
 
@@ -342,9 +364,6 @@ export class HavokPlugin {
 
     private _useDeltaForWorldStep: boolean;
     private _fixedTimeStep: number = 1 / 60;
-    private _tmpVec3: Vector3[] = [new Vector3(), new Vector3(), new Vector3()];
-    private _tmpQuat = new Quaternion();
-    private _tmpMatrix = new Matrix4();
     private _bodies: Map<bigint, { body: PhysicsBody; index: number }> =
         new Map();
     private _shapes: Map<number, PhysicsShape> = new Map();
@@ -705,10 +724,10 @@ export class HavokPlugin {
         this.syncTransform(body, body.node);
     }
 
-    public syncTransform(body: PhysicsBody, transformNode: Object3D): void {
+    public syncTransform(body: PhysicsBody, node: Object3D): void {
         if (body._pluginDataInstances.length > 0) {
             // Instances
-            const m = transformNode as InstancedMesh;
+            const m = node as InstancedMesh;
             const matrixData = m.instanceMatrix.array;
             if (!matrixData) {
                 return;
@@ -739,45 +758,44 @@ export class HavokPlugin {
             m.instanceMatrix.needsUpdate = true;
         } else {
             try {
-                // Regular
-                const bodyTransform = this._hknp.HP_Body_GetQTransform(
-                    body._pluginData.hpBodyId
-                )[1];
+                // regular
+                const bodyTransform = this._hknp.HP_Body_GetQTransform(body._pluginData.hpBodyId)[1];
                 const bodyTranslation = bodyTransform[0];
                 const bodyOrientation = bodyTransform[1];
+                const quat = tempQuats[0].fromArray(bodyOrientation);
+                const parent = node.parent;
+                // transform position/orientation in parent space
+                if (parent && !isMatrixIdentity(parent.matrixWorld)) {
+                    parent.updateMatrixWorld(true);
 
-                const finalTranslation = this._tmpVec3[0].fromArray(bodyTranslation);
-                const finalQuaternion = this._tmpQuat.fromArray(bodyOrientation);
+                    // Save scaling for future use
+                    tempVecs[1].copy(node.scale);
+                    quat.normalize();
+                    const finalTransform = tempMatrixes[0];
+                    const finalTranslation = tempVecs[0].fromArray(bodyTranslation);
+                    const absoluteScaling = tempVecs[2];
+                    node.getWorldScale(absoluteScaling);
+                    // Matrix.ComposeToRef(transformNode.absoluteScaling, quat, finalTranslation, finalTransform);
+                    finalTransform.compose(finalTranslation, quat, absoluteScaling);
 
-                if (transformNode.parent) {
-                    transformNode.parent.updateWorldMatrix(true, false);
-                    const parentInverseTransform = this._tmpMatrix
-                        .copy(transformNode.parent.matrixWorld)
-                        .invert();
-
-                    const finalTransform = new Matrix4().compose(
-                        finalTranslation,
-                        finalQuaternion,
-                        transformNode.scale // Preserve local scale
-                    );
-
-                    const localTransform = new Matrix4().multiplyMatrices(
-                        parentInverseTransform,
-                        finalTransform
-                    );
-
-                    localTransform.decompose(
-                        transformNode.position,
-                        transformNode.quaternion,
-                        transformNode.scale
-                    );
-                } else {
-                    transformNode.position.copy(finalTranslation);
-                    transformNode.quaternion.copy(finalQuaternion);
+                    const parentInverseTransform = tempMatrixes[1];
+                    parentInverseTransform.copy(parent.matrixWorld);
+                    parentInverseTransform.invert();
+                    const localTransform = tempMatrixes[2];
+                    localTransform.multiplyMatrices(parentInverseTransform, finalTransform);
+                    localTransform.decompose(node.position, node.quaternion, node.scale);
+                    // decomposeToNode(localTransform, node);
+                    node.quaternion.normalize();
+                    // Keep original scaling. Re-injecting scaling can introduce discontinuity between frames. Basically, it grows or shrinks.
+                    node.scale.copy(tempVecs[1]);
+                }
+                else {
+                    node.position.set(bodyTranslation[0], bodyTranslation[1], bodyTranslation[2]);
+                    node.quaternion.copy(quat);
                 }
             } catch (error) {
                 console.error(
-                    `Syncing transform failed for node ${transformNode.name}:`,
+                    `Syncing transform failed for node ${node.name}:`,
                     error
                 );
             }
@@ -818,14 +836,14 @@ export class HavokPlugin {
             : body._pluginData;
     }
 
-    // public getShape(body: PhysicsBody): PhysicsShape | null {
-    //     const pluginRef = this._getPluginReference(body);
-    //     const shapePluginData = this._hknp.HP_Body_GetShape(pluginRef.hpBodyId)[1];
-    //     if ((shapePluginData as unknown as number) !== 0) {
-    //         return new PhysicsShape({ pluginData: shapePluginData }, this);
-    //     }
-    //     return null;
-    // }
+    public getShape(body: PhysicsBody): PhysicsShape | null {
+        const pluginRef = this._getPluginReference(body);
+        const shapePluginData = this._hknp.HP_Body_GetShape(pluginRef.hpBodyId)[1];
+        if ((shapePluginData as unknown as number) !== 0) {
+            return new PhysicsShape({ pluginData: shapePluginData }, this);
+        }
+        return null;
+    }
 
     public getShapeType(shape: PhysicsShape): PhysicsShapeType {
         // TODO HP_Shape_GetType returns a native type!
@@ -1149,7 +1167,7 @@ export class HavokPlugin {
         instanceIndex?: number
     ): void {
         force.clone().multiplyScalar(this.getTimeStep());
-        this.applyImpulse(body, this._tmpVec3[0], location, instanceIndex);
+        this.applyImpulse(body, tempVecs[0], location, instanceIndex);
     }
 
     public setAngularVelocity(
@@ -1202,8 +1220,8 @@ export class HavokPlugin {
                 );
             }
         } else if (body.getPrestepType() == PhysicsPrestepType.ACTION) {
-            const worldPos = new Vector3();
-            const worldQuat = new Quaternion();
+            worldPos.set(0, 0, 0);
+            worldQuat.set(0, 0, 0, 1);
             node.getWorldPosition(worldPos);
             node.getWorldQuaternion(worldQuat);
             this.setTargetTransform(body, worldPos, worldQuat);
@@ -1713,9 +1731,9 @@ export class HavokPlugin {
             (childBody._pluginDataInstances.length > 0 &&
                 childInstanceIndex === undefined)
         ) {
-                console.warn(
-                    "Body is instanced but no instance index was specified. Constraint will not be applied."
-                );
+            console.warn(
+                "Body is instanced but no instance index was specified. Constraint will not be applied."
+            );
             return;
         }
         constraint._pluginData = constraint._pluginData ?? [];
@@ -1735,7 +1753,7 @@ export class HavokPlugin {
             ? [options.pivotA.x, options.pivotA.y, options.pivotA.z]
             : [0, 0, 0];
         const axisA = options.axisA ?? VECTOR_RIGHT;
-        const perpAxisA = this._tmpVec3[0];
+        const perpAxisA = tempVecs[0];
         if (options.perpAxisA) {
             perpAxisA.copy(options.perpAxisA);
         } else {
@@ -1751,7 +1769,7 @@ export class HavokPlugin {
             ? [options.pivotB.x, options.pivotB.y, options.pivotB.z]
             : [0, 0, 0];
         const axisB = options.axisB ?? VECTOR_RIGHT;
-        const perpAxisB = this._tmpVec3[0];
+        const perpAxisB = tempVecs[0];
         if (options.perpAxisB) {
             perpAxisB.copy(options.perpAxisB);
         } else {
@@ -2621,8 +2639,8 @@ export class HavokPlugin {
                 if (collisionInfo.type === "COLLISION_FINISHED" /* PhysicsEventType.COLLISION_FINISHED */) {
                     this.onCollisionEndedObservable.notifyObservers(collisionInfo);
                 } else {
-                    this._tmpVec3[0].subVectors(event.contactOnB.position, event.contactOnA.position);
-                    const distance = this._tmpVec3[0].dot(event.contactOnA.normal);
+                    tempVecs[0].subVectors(event.contactOnB.position, event.contactOnA.position);
+                    const distance = tempVecs[0].dot(event.contactOnA.normal);
                     collisionInfo.point = event.contactOnA.position;
                     collisionInfo.distance = distance;
                     collisionInfo.impulse = event.impulseApplied;
@@ -2633,8 +2651,8 @@ export class HavokPlugin {
                 if (this._bodyCollisionObservable.size > 0 && collisionInfo.type !== "COLLISION_FINISHED" /* PhysicsEventType.COLLISION_FINISHED */) {
                     const observableA = this._bodyCollisionObservable.get(event.contactOnA.bodyId);
                     const observableB = this._bodyCollisionObservable.get(event.contactOnB.bodyId);
-                    this._tmpVec3[0].subVectors(event.contactOnA.position, event.contactOnB.position);
-                    const distance = this._tmpVec3[0].dot(event.contactOnB.normal);
+                    tempVecs[0].subVectors(event.contactOnA.position, event.contactOnB.position);
+                    const distance = tempVecs[0].dot(event.contactOnB.normal);
                     if (observableA) {
                         observableA.notifyObservers(collisionInfo);
                     }
@@ -2656,8 +2674,8 @@ export class HavokPlugin {
                 else if (this._bodyCollisionEndedObservable.size > 0) {
                     const observableA = this._bodyCollisionEndedObservable.get(event.contactOnA.bodyId);
                     const observableB = this._bodyCollisionEndedObservable.get(event.contactOnB.bodyId);
-                    this._tmpVec3[0].subVectors(event.contactOnA.position, event.contactOnB.position);
-                    const distance = this._tmpVec3[0].dot(event.contactOnB.normal);
+                    tempVecs[0].subVectors(event.contactOnA.position, event.contactOnB.position);
+                    const distance = tempVecs[0].dot(event.contactOnB.normal);
                     if (observableA) {
                         observableA.notifyObservers(collisionInfo);
                     }
@@ -2746,9 +2764,9 @@ export class HavokPlugin {
 
     private _getTransformInfos(node: Object3D): QTransform {
         node.updateWorldMatrix(true, false);
-        const worldPos = new Vector3();
-        const worldQuat = new Quaternion();
-        node.matrixWorld.decompose(worldPos, worldQuat, this._tmpVec3[1]); // scale is ignored
+        worldPos.set(0, 0, 0);
+        worldQuat.set(0, 0, 0, 1);
+        node.matrixWorld.decompose(worldPos, worldQuat, tempVecs[1]); // scale is ignored
 
         return [
             this._threeVectorToHavokArray(worldPos),
