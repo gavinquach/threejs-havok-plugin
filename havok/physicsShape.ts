@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { Matrix4 } from "three/src/math/Matrix4.js";
 import { Vector3 } from "three/src/math/Vector3.js";
 import { Quaternion } from "three/src/math/Quaternion.js";
 
@@ -12,8 +13,9 @@ import {
 } from "@/utils/three/havok/types/havok";
 import { QUATERNION_IDENTITY, VECTOR_ONE, VECTOR_ZERO } from "@/utils/three/constants";
 
-import type {  Object3D, Mesh } from "three";
+import type { Object3D, Mesh } from "three";
 
+const tempMats = Array.from({ length: 2 }, () => new Matrix4());
 const tempVecs = Array.from({ length: 2 }, () => new Vector3());
 const tempQuats = Array.from({ length: 1 }, () => new Quaternion());
 
@@ -181,13 +183,13 @@ export class PhysicsShape {
         childTransform.updateMatrixWorld(true);
         parentTransform.updateMatrixWorld(true);
         const childToWorld = childTransform.matrixWorld;
-        const parentToWorld = parentTransform.matrixWorld;
-        const childToParent = childToWorld.clone();
-        childToParent.multiply(parentToWorld.invert());
+        const parentToWorld = tempMats[1].copy(parentTransform.matrixWorld).invert();
+        const childToParent = tempMats[0];
+        childToParent.multiplyMatrices(parentToWorld.invert(), childToWorld);
         const translation = tempVecs[0];
         const rotation = tempQuats[0];
         const scale = tempVecs[1];
-        childToParent.decompose(scale, rotation, translation);
+        childToParent.decompose(translation, rotation, scale);
         this._physicsPlugin.addChild(this, newChild, translation, rotation, scale);
     }
     /**
